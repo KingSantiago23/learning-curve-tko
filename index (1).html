@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Learning-Curve Calculator: UFC (TKO)</title>
+<style>
+:root{--bg:#f6f5f2;--fg:#1b1b1b;--muted:#625f59;--line:#d6d3cc;--card:#fff;--accent:#b3261e;--ok:#1f6f43;
+ box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161615;--fg:#ecebe7;--muted:#a09d95;--line:#3a3935;--card:#1f1f1d;--accent:#ff7a70;--ok:#6fcf97}}
+:root[data-theme="dark"]{--bg:#161615;--fg:#ecebe7;--muted:#a09d95;--line:#3a3935;--card:#1f1f1d;--accent:#ff7a70;--ok:#6fcf97}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*:before,*:after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:860px;margin:0 auto;padding:24px 16px 48px}
+h1{font:700 1.7rem/1.2 Georgia,"Times New Roman",serif;margin:0 0 4px}
+h2{font:600 1.05rem/1.3 system-ui,sans-serif;margin:28px 0 8px}
+p{margin:0 0 10px}.sub{color:var(--muted)}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:6px;background:var(--card)}
+table{border-collapse:collapse;width:100%;min-width:620px;font-size:.9rem}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+th{font-weight:600;color:var(--muted)}tr:last-child td{border-bottom:0}
+input[type=text],input[type=number],input[type=date]{width:100%;font:inherit;padding:4px 6px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--fg)}
+input:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+button{font:inherit;padding:6px 12px;border:1px solid var(--line);border-radius:4px;background:var(--card);color:var(--fg);cursor:pointer}
+button.x{padding:2px 8px}.bar{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.stat{border:1px solid var(--line);border-radius:6px;background:var(--card);padding:10px 12px}
+.stat b{display:block;font-size:1.5rem;font-variant-numeric:tabular-nums}.stat span{color:var(--muted);font-size:.85rem}
+.verdict{border-left:4px solid var(--accent);padding:6px 12px;margin-top:12px;background:var(--card)}
+svg{width:100%;height:auto;display:block;background:var(--card);border:1px solid var(--line);border-radius:6px}
+svg text{fill:var(--muted);font:11px system-ui,sans-serif}.small{font-size:.85rem;color:var(--muted)}
+</style>
+</head>
+<body>
+<main>
+<h1>Learning-Curve Calculator</h1>
+<p class="sub">Fits Cost(N) = Cost(1) × N<sup>−b</sup> to quarterly data. Prefilled: UFC segment direct operating costs and events held, from TKO Group Holdings 10-Q and 10-K filings (SEC EDGAR, CIK 1973266). Edit any cell, untick a quarter to drop it from the fit, or add rows to test your own data.</p>
+
+<h2>Data</h2>
+<div class="scroll"><table id="tbl"><thead><tr><th>Fit</th><th>Quarter end</th><th>Cost ($M)</th><th>Events</th><th>Source</th><th></th></tr></thead><tbody></tbody></table></div>
+<div class="bar"><button id="add">Add row</button><button id="reset">Reset to TKO data</button></div>
+
+<h2>Result</h2>
+<div class="stats" id="stats"></div>
+<div class="verdict" id="verdict"></div>
+
+<h2>Log-log plot</h2>
+<svg id="plot" viewBox="0 0 640 400" role="img" aria-label="Log-log plot of cost per event versus cumulative events with fitted power curve"></svg>
+<p class="small">Both axes are log scale; a true power curve plots as a straight, downward-sloping line. Hollow points are excluded from the fit.</p>
+
+<h2>Method and limits</h2>
+<p class="small">Cumulative events are counted from the first row (Q1 2024), not from UFC's first event, so b can be biased. Cost is the UFC segment measure of direct operating costs (not a GAAP line, and not COGS by name); Q4 values are derived as full year minus nine months. Units are direct event counts, but a numbered event and a Fight Night cost very different amounts, so cost per event is lumpy. Q2 2026 includes UFC Freedom 250 (White House), a one-off. Costs are nominal dollars. Sources: TKO 10-K FY2024 (0000950170-25-027778), 10-Qs Q1–Q3 2025 (0000950170-25-067220, 0000950170-25-104095, 0001193125-25-267014), 10-K FY2025 (0001193125-26-071651), 10-Qs Q1–Q2 2026 (0001193125-26-208992, 0001193125-26-330592).</p>
+</main>
+<script>
+var DEFAULT=[
+["2024-03-31",82.315,11,"10-Q Q1 2025, prior-year column"],
+["2024-06-30",119.637,11,"10-Q Q2 2025, prior-year column"],
+["2024-09-30",114.762,10,"10-Q Q3 2025, prior-year column"],
+["2024-12-31",113.509,10,"Derived: FY2024 430.223 minus 9M 316.714; events 42-32"],
+["2025-03-31",89.672,11,"10-Q Q1 2025"],
+["2025-06-30",116.283,11,"10-Q Q2 2025"],
+["2025-09-30",104.049,10,"10-Q Q3 2025"],
+["2025-12-31",123.169,10,"Derived: FY2025 433.173 minus 9M 310.004; events 42-32"],
+["2026-03-31",98.625,9,"10-Q Q1 2026"],
+["2026-06-30",192.182,12,"10-Q Q2 2026 (includes White House event)"]];
+var rows=[];
+function load(){rows=DEFAULT.map(function(r){return{d:r[0],c:r[1],u:r[2],s:r[3],on:true}})}
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;")}
+function drawTable(){
+ var tb=document.querySelector("#tbl tbody");
+ tb.innerHTML=rows.map(function(r,i){return '<tr><td><input type="checkbox" data-i="'+i+'" data-f="on"'+(r.on?" checked":"")+' aria-label="Include in fit"></td>'+
+ '<td><input type="date" data-i="'+i+'" data-f="d" value="'+esc(r.d)+'"></td>'+
+ '<td><input type="number" step="any" min="0" data-i="'+i+'" data-f="c" value="'+r.c+'"></td>'+
+ '<td><input type="number" step="any" min="0" data-i="'+i+'" data-f="u" value="'+r.u+'"></td>'+
+ '<td><input type="text" data-i="'+i+'" data-f="s" value="'+esc(r.s)+'"></td>'+
+ '<td><button class="x" data-del="'+i+'" aria-label="Delete row">×</button></td></tr>'}).join("");
+}
+function fit(x,y){var n=x.length,mx=0,my=0,i;for(i=0;i<n;i++){mx+=x[i];my+=y[i]}mx/=n;my/=n;
+ var sxy=0,sxx=0,syy=0;for(i=0;i<n;i++){sxy+=(x[i]-mx)*(y[i]-my);sxx+=(x[i]-mx)*(x[i]-mx);syy+=(y[i]-my)*(y[i]-my)}
+ var m=sxy/sxx,ic=my-m*mx;return{slope:m,ic:ic,r2:syy?(sxy*sxy)/(sxx*syy):0,n:n}}
+function ticks(lo,hi){var t=[],k=Math.floor(Math.log10(lo)),v,m;for(;Math.pow(10,k)<=hi;k++){[1,2,5].forEach(function(f){v=f*Math.pow(10,k);if(v>=lo&&v<=hi)t.push(v)})}return t}
+function fmt(v){return v>=1e3?v.toLocaleString("en-US"):(v>=10?v.toFixed(0):v.toFixed(1))}
+function interpret(lr,r2,b){var s;
+ if(r2<0.5||b<=0){s=["The fit is poor (R² = "+r2.toFixed(2)+") or cost is not falling with volume (b = "+b.toFixed(3)+"), so no experience curve is visible in this window.",
+  "The computed rate of "+(lr*100).toFixed(1)+"% should not be treated as a real learning rate.",
+  "Cost changes here are likely driven by input prices, event mix, or one-off events, not cumulative volume.",
+  "This gives no evidence of a scale-driven cost advantage, so any edge this company has likely comes from other sources such as brand, pricing power, or exclusive contracts."]}
+ else{var st=(lr>=0.1&&lr<=0.3)?"within":(lr<0.1?"below":"above");
+  s=["Each doubling of cumulative units in this window is associated with a "+(lr*100).toFixed(1)+"% drop in unit cost (b = "+b.toFixed(3)+", R² = "+r2.toFixed(2)+"); "+(r2>=0.8?"a real curve is likely present.":"the curve is suggestive but noisy."),
+  "That is "+st+" the typical 10–30% range for experience curves.",
+  lr>=0.1?"A steeper rate means a larger cost lead for whoever scales first, so volume leaders gain a structural advantage.":"A shallow rate means scale alone confers a modest cost advantage."]}
+ s.push("Cumulative volume starts at the beginning of the data window, not at the first unit ever produced, so b can be biased.");return s.join(" ")}
+function update(){
+ var data=rows.filter(function(r){return r.d&&r.c>0&&r.u>0}).sort(function(a,b){return a.d<b.d?-1:1});
+ var cum=0;data.forEach(function(r){cum+=r.u;r.N=cum;r.uc=r.c/r.u});
+ var inc=data.filter(function(r){return r.on}),st=document.getElementById("stats"),v=document.getElementById("verdict"),svg=document.getElementById("plot");
+ if(inc.length<3){st.innerHTML="";v.textContent="Include at least three valid rows (cost and events above zero) to fit a curve.";svg.innerHTML="";return}
+ var f=fit(inc.map(function(r){return Math.log(r.N)}),inc.map(function(r){return Math.log(r.uc)}));
+ var b=-f.slope,lr=1-Math.pow(2,-b);
+ st.innerHTML=[["b",b.toFixed(4)],["Learning rate",(lr*100).toFixed(1)+"%"],["R²",f.r2.toFixed(3)],["Points in fit",f.n]].map(function(a){return '<div class="stat"><b>'+a[1]+'</b><span>'+a[0]+'</span></div>'}).join("");
+ v.textContent=interpret(lr,f.r2,b);
+ var W=640,H=400,L=62,R=16,T=14,Bm=48,xs=data.map(function(r){return r.N}),ys=data.map(function(r){return r.uc});
+ var x0=Math.min.apply(0,xs)/1.4,x1=Math.max.apply(0,xs)*1.4,y0=Math.min.apply(0,ys)/1.15,y1=Math.max.apply(0,ys)*1.15;
+ function X(v){return L+(Math.log(v)-Math.log(x0))/(Math.log(x1)-Math.log(x0))*(W-L-R)}
+ function Y(v){return H-Bm-(Math.log(v)-Math.log(y0))/(Math.log(y1)-Math.log(y0))*(H-Bm-T)}
+ var o="";
+ ticks(x0,x1).forEach(function(t){o+='<line x1="'+X(t)+'" x2="'+X(t)+'" y1="'+T+'" y2="'+(H-Bm)+'" stroke="var(--line)"/><text x="'+X(t)+'" y="'+(H-Bm+16)+'" text-anchor="middle">'+fmt(t)+'</text>'});
+ ticks(y0,y1).forEach(function(t){o+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+Y(t)+'" y2="'+Y(t)+'" stroke="var(--line)"/><text x="'+(L-6)+'" y="'+(Y(t)+4)+'" text-anchor="end">'+(t/1e6<10?(t/1e6).toFixed(1):(t/1e6).toFixed(0))+'M</text>'});
+ o+='<rect x="'+L+'" y="'+T+'" width="'+(W-L-R)+'" height="'+(H-Bm-T)+'" fill="none" stroke="var(--muted)"/>';
+ var a=inc[0].N,z=inc[inc.length-1].N,c1=Math.exp(f.ic);
+ o+='<line x1="'+X(a)+'" y1="'+Y(c1*Math.pow(a,-b))+'" x2="'+X(z)+'" y2="'+Y(c1*Math.pow(z,-b))+'" stroke="var(--accent)" stroke-width="2"/>';
+ data.forEach(function(r){o+='<circle cx="'+X(r.N)+'" cy="'+Y(r.uc)+'" r="5" '+(r.on?'fill="var(--fg)"':'fill="none" stroke="var(--fg)" stroke-width="1.5"')+'><title>'+r.d+': '+(r.uc/1e6).toFixed(2)+'M per event, cumulative '+r.N+'</title></circle>'});
+ o+='<text x="'+((L+W-R)/2)+'" y="'+(H-8)+'" text-anchor="middle">Cumulative events (log scale, from first row)</text>';
+ o+='<text transform="translate(14 '+((T+H-Bm)/2)+') rotate(-90)" text-anchor="middle">Cost per event, $ (log scale)</text>';
+ svg.innerHTML=o}
+document.querySelector("#tbl").addEventListener("input",function(e){var t=e.target,i=t.dataset.i,f=t.dataset.f;if(i==null)return;
+ rows[i][f]=f==="on"?t.checked:(f==="c"||f==="u")?parseFloat(t.value)||0:t.value;update()});
+document.querySelector("#tbl").addEventListener("click",function(e){var d=e.target.dataset.del;if(d==null)return;rows.splice(+d,1);drawTable();update()});
+document.getElementById("add").onclick=function(){rows.push({d:"",c:0,u:0,s:"",on:true});drawTable()};
+document.getElementById("reset").onclick=function(){load();drawTable();update()};
+load();drawTable();update();
+</script>
+</body>
+</html>
